@@ -2,42 +2,51 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCategoryRequest;
+use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
     public function index()
     {
-        return view('categories', ['categories' => Category::orderBy('id')->get()]);
+        $categories = Category::withCount('sales')
+            ->withSum('sales', 'qty')
+            ->orderBy('id')
+            ->get();
+
+        return view('categories.index', compact('categories'));
     }
 
-    public function store(Request $r)
+    public function create()
     {
-        Category::create($this->data($r));
-        return back()->with('ok', 'Kategori ditambahkan');
+        return view('categories.create');
     }
 
-    public function update(Request $r, Category $category)
+    public function store(StoreCategoryRequest $request)
     {
-        $category->update($this->data($r));
-        return back()->with('ok', 'Kategori diperbarui');
+        Category::create($request->validated());
+        return redirect()->route('categories.index')
+            ->with('ok', 'Kategori berhasil ditambahkan.');
+    }
+
+    public function edit(Category $category)
+    {
+        $terjual = $category->sales()->sum('qty');
+        return view('categories.edit', compact('category', 'terjual'));
+    }
+
+    public function update(UpdateCategoryRequest $request, Category $category)
+    {
+        $category->update($request->validated());
+        return redirect()->route('categories.index')
+            ->with('ok', 'Kategori berhasil diperbarui.');
     }
 
     public function destroy(Category $category)
     {
-        $category->delete(); // penjualan di kategori ini ikut terhapus
-        return back()->with('ok', 'Kategori dihapus');
-    }
-
-    private function data(Request $r): array
-    {
-        $d = $r->validate([
-            'name'  => 'required|string|max:100',
-            'price' => 'required|integer|min:0',
-            'quota' => 'nullable|integer|min:0',
-        ]);
-        $d['quota'] = $d['quota'] ?? 0;
-        return $d;
+        $category->delete();
+        return redirect()->route('categories.index')
+            ->with('ok', 'Kategori dan seluruh penjualannya berhasil dihapus.');
     }
 }
